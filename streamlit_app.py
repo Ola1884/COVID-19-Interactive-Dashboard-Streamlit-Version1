@@ -182,4 +182,92 @@ with tab4:
     prophet_df, future_dates, forecast_values, prophet_metrics = prophet_forecast(selected_country)
     
     # Calculate metrics
-    last_historical_value = historical_df['Cases'].iloc[-
+    last_historical_value = historical_df['Cases'].iloc[-1]
+    forecast_value_30d = forecast_values.iloc[-1] if len(forecast_values) > 0 else 0
+    forecast_growth = ((forecast_value_30d - last_historical_value) / last_historical_value * 100) if last_historical_value > 0 else 0
+    
+    # Current trend analysis
+    current_ma = historical_df['7Day_MA'].iloc[-1]
+    previous_ma = historical_df['7Day_MA'].iloc[-8] if len(historical_df) > 7 else current_ma
+    trend = "Increasing" if current_ma > previous_ma else "Decreasing"
+    trend_percentage = abs((current_ma - previous_ma) / previous_ma * 100) if previous_ma > 0 else 0
+    
+    # Create metrics columns
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Current Cases", f"{last_historical_value:,.0f}")
+        st.metric("Peak Cases", f"{historical_df['Cases'].max():,.0f}")
+    
+    with col2:
+        st.metric("30-Day Forecast", f"{forecast_value_30d:,.0f}")
+        st.metric("Projected Growth", f"{forecast_growth:+.1f}%")
+    
+    with col3:
+        st.metric("7-Day Trend", trend, f"{trend_percentage:.1f}%")
+        st.metric("Data Duration", f"{len(historical_df)} days")
+    
+    # Additional insights
+    st.subheader("Additional Information")
+    st.info("""
+    - **Current Cases**: Latest available case count
+    - **30-Day Forecast**: Projected cases in 30 days using Prophet model
+    - **Projected Growth**: Expected growth rate over 30 days
+    - **7-Day Trend**: Current trend based on 7-day moving average
+    - **Peak Cases**: Highest recorded cases
+    - **Data Duration**: Available historical data points
+    """)
+
+# Model Comparison Tab
+with tab5:
+    st.header(f"Model Comparison for {selected_country}")
+    
+    comparison = get_model_comparison(selected_country)
+    
+    # Create comparison plot
+    fig_comparison = go.Figure()
+    fig_comparison.add_trace(go.Scatter(
+        x=comparison['historical']['Date'], 
+        y=comparison['historical']['Cases'],
+        mode='lines', 
+        name='Historical Data', 
+        line=dict(color='blue', width=2)
+    ))
+    fig_comparison.add_trace(go.Scatter(
+        x=comparison['prophet']['dates'], 
+        y=comparison['prophet']['values'],
+        mode='lines+markers', 
+        name='Prophet Forecast', 
+        line=dict(color='red', dash='dash')
+    ))
+    fig_comparison.add_trace(go.Scatter(
+        x=comparison['random_forest']['dates'], 
+        y=comparison['random_forest']['values'],
+        mode='lines+markers', 
+        name='Random Forest Forecast', 
+        line=dict(color='green', dash='dot')
+    ))
+    
+    fig_comparison.update_layout(
+        title=f'Model Comparison for {selected_country}',
+        xaxis_title='Date',
+        yaxis_title='Cases',
+        hovermode='x unified',
+        height=500
+    )
+    st.plotly_chart(fig_comparison, use_container_width=True)
+    
+    # Model metrics
+    st.subheader("Model Performance Metrics")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("##### 🤖 Random Forest:")
+        st.metric("Mean Absolute Error (MAE)", f"{comparison['random_forest']['metrics']['mae']:.2f}")
+        st.metric("Root Mean Squared Error (RMSE)", f"{comparison['random_forest']['metrics']['rmse']:.2f}")
+    
+    with col2:
+        st.markdown("##### 🔮 Prophet:")
+        st.metric("Mean Absolute Error (MAE)", f"{comparison['prophet']['metrics']['mae']:.2f}")
+        st.metric("Root Mean Squared Error (RMSE)", f"{comparison['prophet']['metrics']['rmse']:.2f}")
